@@ -1,17 +1,14 @@
+import java.io.*;
 import java.util.*;
-import java.io.File;
-import java.io.FileReader;
-import java.io.FileNotFoundException;
+
 /**
  * uses collected information on airlines (respective airports, countries and cities involved)
  * to recommend a route to the destination country for  the user
  * @author: Ruvimbo Joy Sithole
  */
 public class Flights{
-
     HashMap<String, String> city_countries = new HashMap(); //stores the citycountry  and the corresponding code
     HashMap<String, ArrayList<Node>> all_Routes = new HashMap<>(); //stores all the routes associated with a certain airport code
-
 
 /**
  * Takes city names, country names and codes
@@ -28,6 +25,27 @@ public class Flights{
                 city_countries.put(temp, line[4]); //value for the (citycountry) key will be the airport's code
             }
         }
+
+        scanner_object.close();
+    }
+
+    public String start() throws IOException {
+
+        Scanner scanner = new Scanner(System.in);
+        System.out.println("Enter start location in the form: city,country ");
+        String[] src = scanner.nextLine().split(",");
+
+
+        System.out.println("Enter desired destination location in the form: city,country ");
+        String[] dest = scanner.nextLine().split(",");
+        String name = src[0] + "-" + dest[0];
+        FileWriter uInput = new FileWriter(name + ".txt");
+        
+        uInput.write(String.join(",", src) + "\n");
+
+        uInput.write(String.join(",", dest));
+        uInput.close();
+        return name;
     }
 
     /**
@@ -36,14 +54,25 @@ public class Flights{
      * @return the list containing city-country  for source and for the destination
      * @throws FileNotFoundException
      */
-    public ArrayList<String> userInput(File user_input) throws FileNotFoundException{
+    public ArrayList<String> getCodes(File user_input) throws FileNotFoundException{
+
         Scanner scanner = new Scanner(new FileReader(user_input));
         ArrayList<String> source_dest = new ArrayList<>();
 
-        while (scanner.hasNextLine()){
-           String [] temp= scanner.nextLine().split(",");
-            source_dest.add(temp[0] + temp[1]);
+        String[] temp= scanner.nextLine().split(",");
+        String[] temp2= scanner.nextLine().split(",");
+        String s = temp[0].strip() + temp[1].strip();
+        String d = temp2[0].strip() + temp2[1].strip();
+        scanner.close();
+
+        //find the code for stated start location and destination
+        if(city_countries.containsKey(s) && city_countries.containsKey(d) ){
+            source_dest.add(city_countries.get(s));
+            source_dest.add(city_countries.get(d));
         }
+        else
+            return null; //destination airport does not exit
+
         return source_dest;
     }
 
@@ -70,11 +99,13 @@ public class Flights{
                 temp.add(new_destination);
                 all_Routes.put(line[2], temp);
             }
+
             temp.add(new_destination);
             all_Routes.put(line[2], temp); //adding an array to hold the Node destinations associated with the current airport code
-
         }
+        sc.close();
     }
+
 
     /**
      * Bakctracks Nodes from the found destination to the start airport
@@ -89,12 +120,28 @@ public class Flights{
             result.add(child);
             child = child.getParent();
         }
-
         Collections.reverse(result);
-
         return result;
     }
 
+    /**
+     * writes out the generation of Nodes from the start to destination into file
+     * @param res an Array List of Nodes comprising the solution route
+     * @param filename to be used in creating Output filename
+     * @throws IOException if the Filewriter is unsuccessful
+     */
+    public void writeOutput(ArrayList<Node> res, String filename) throws IOException
+    {
+        FileWriter outputFile = new FileWriter(filename + "_output" + ".txt");
+        int stops = 0;
+        for(int r = 0 ; r < res.size(); r++)
+        {
+            outputFile.write(r + 1  + ". " + res.get(r) + "\n");
+        }
+
+        outputFile.write("Total flights: "+ res.size()+ "\n" + " Total additional stops: " + stops);
+        outputFile.close();
+    }
 
     /**
      * Find the route from the given source to destination
@@ -103,25 +150,17 @@ public class Flights{
      */
     public ArrayList<Node> generateRoute(ArrayList<String> source_destination)
     {
+        if (source_destination == null){
+            return null;
+        }
+
+        String source_code = source_destination.get(0);
+        String destination_code = source_destination.get(1);
         LinkedList<Node> frontier = new LinkedList<>();
         HashSet<String> explored = new HashSet<>();
-        String source_code = "";
-        String destination_code = "";
 
-        if(city_countries.containsKey(source_destination.get(0))){
-            source_code = city_countries.get(source_destination.get(0));
-            Node curr_node = new Node(source_code, null,null);
-            frontier.add(curr_node); //add start airport Node to the frontier
-        }
-        else{
-            return null;//source airport does not exist
-        }
-        if(city_countries.containsKey(source_destination.get(1))) {
-            destination_code = city_countries.get(source_destination.get(1));
-        }
-        else{
-            return null; //destination airport does not exit
-        }
+        Node curr_node = new Node(source_code, null, null);
+        frontier.add(curr_node); //add start airport Node to the frontier
 
         //To find the route to user's destination airport:
         //explore the breadth of all the destination nodes connected to the source airport
@@ -134,7 +173,6 @@ public class Flights{
             //if any destination node is == to user's destination return solution
             if(src_routes!= null) {
                 for (Node potential : src_routes) {
-                    System.out.println(potential.getCode() + " the parent  " + potential.getParent() + "");
                     potential.setParent(src);
                     if (potential.getCode().equals(destination_code)) {
                         return solution(potential);
@@ -167,23 +205,22 @@ public class Flights{
 
         //USER
         try{
-            ArrayList<String> source_destination = demoProgram.userInput(new File("userFile.txt"));
+            String fName = demoProgram.start();
+            File userInput = new File(fName + ".txt");
+            ArrayList<String> source_destination = demoProgram.getCodes(userInput);
             ArrayList<Node> result = demoProgram.generateRoute(source_destination);
 
             if (result == null)
                 System.out.println(" There exists no route from " + source_destination.get(0) +
                         " to your desired destination " + source_destination.get(1));
             else{
-                int stops = 0;
-                for(int r = 0 ; r < result.size(); r++){
-                    System.out.println(r + 1  + ". " + result.get(r));
-                }
-                System.out.println("Total flights: "+ result.size()+ "\n" + " Total additional stops: " + stops);
+                demoProgram.writeOutput(result,fName);
+                System.out.println("Route Found. Find the results in " + fName + "_output.txt");
             }
         }
 
-        catch (FileNotFoundException fnfe){
-            System.out.println("File passed could not be found");
+        catch (IOException ioe){
+            System.out.println("The city and country names are invalid");
         }
     }
 }
